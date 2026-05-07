@@ -4,10 +4,11 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-const prisma =
+export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ['warn', 'error'],
+    // Removi log 'warn' para limpar o log de build, deixe apenas se precisar depurar
+    log: ['error'], 
   });
 
 if (process.env.NODE_ENV !== 'production') {
