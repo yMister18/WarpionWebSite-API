@@ -4,20 +4,16 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-function createPrismaClient() {
-  return new PrismaClient({
+const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
     log: ['warn', 'error'],
   });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
 }
 
 export function getPrismaClient() {
-  if (process.env.NODE_ENV === 'production') {
-    return createPrismaClient();
-  }
-
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
-  }
-
-  return globalForPrisma.prisma;
+  return prisma;
 }

@@ -46,6 +46,7 @@ model Order {
   totalAmount  Decimal       @db.Decimal(10, 2)
   paymentMethod String?
   paidAt       DateTime?
+  commandsIssuedAt DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

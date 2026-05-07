@@ -31,9 +31,7 @@ export async function GET(request: NextRequest) {
     const commands = await prisma.shopCommand.findMany({
       where: {
         playerId: player.id,
-        status: {
-          in: [ShopCommandStatus.PENDING, ShopCommandStatus.PUBLISHED],
-        },
+        status: ShopCommandStatus.PENDING,
       },
       orderBy: {
         createdAt: 'asc',

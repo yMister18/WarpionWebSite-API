@@ -38,6 +38,12 @@ export async function POST(request: NextRequest) {
       return fail('ShopCommand not found', 404);
     }
 
+    if (existing.status === ShopCommandStatus.DELIVERED) {
+      return ok({
+        shopCommand: existing,
+      });
+    }
+
     const updated = await prisma.shopCommand.update({
       where: { id: shopCommandId },
       data: success

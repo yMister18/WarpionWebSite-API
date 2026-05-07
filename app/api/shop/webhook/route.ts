@@ -54,7 +54,13 @@ export async function POST(request: NextRequest) {
       return fail('Player not found', 404);
     }
 
-    const order = await prisma.order.update({
+    const publishedCommands: Array<{
+      shopCommandId: string;
+      command: string;
+      published: boolean;
+    }> = [];
+
+    let order = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: normalizedStatus as OrderStatus,
@@ -62,37 +68,67 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const publishedCommands: Array<{
-      shopCommandId: string;
-      command: string;
-      published: boolean;
-    }> = [];
-
     if (normalizedStatus === OrderStatus.PAID) {
-      for (const command of commands) {
-        const shopCommand = await prisma.shopCommand.create({
+      const creationResult = await prisma.$transaction(async (tx) => {
+        const commandIssuanceLock = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            commandsIssuedAt: null,
+          },
           data: {
-            orderId: order.id,
-            playerId: player.id,
-            command,
-            status: ShopCommandStatus.PUBLISHED,
-            publishedAt: new Date(),
+            commandsIssuedAt: new Date(),
           },
         });
 
+        if (commandIssuanceLock.count === 0) {
+          return {
+            createdCommands: [] as Array<{ id: string; command: string; orderId: string }>,
+            order: await tx.order.findUniqueOrThrow({ where: { id: order.id } }),
+          };
+        }
+
+        const createdCommands = await Promise.all(
+          commands.map((command) =>
+            tx.shopCommand.create({
+              data: {
+                orderId: order.id,
+                playerId: player.id,
+                command,
+                status: ShopCommandStatus.PUBLISHED,
+                publishedAt: new Date(),
+              },
+              select: {
+                id: true,
+                command: true,
+                orderId: true,
+              },
+            })
+          )
+        );
+
+        const updatedOrder = await tx.order.findUniqueOrThrow({
+          where: { id: order.id },
+        });
+
+        return { createdCommands, order: updatedOrder };
+      });
+
+      order = creationResult.order;
+
+      for (const shopCommand of creationResult.createdCommands) {
         try {
           await publishShopCommand({
             type: 'SHOP_COMMAND_EXECUTION',
             shopCommandId: shopCommand.id,
-            orderId: order.id,
+            orderId: shopCommand.orderId,
             playerUuid,
-            command,
+            command: shopCommand.command,
             createdAt: new Date().toISOString(),
           });
 
           publishedCommands.push({
             shopCommandId: shopCommand.id,
-            command,
+            command: shopCommand.command,
             published: true,
           });
         } catch (publishError) {
@@ -108,7 +144,7 @@ export async function POST(request: NextRequest) {
 
           publishedCommands.push({
             shopCommandId: shopCommand.id,
-            command,
+            command: shopCommand.command,
             published: false,
           });
         }
