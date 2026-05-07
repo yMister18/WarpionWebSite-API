@@ -7,8 +7,7 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    // Removi log 'warn' para limpar o log de build, deixe apenas se precisar depurar
-    log: ['error'], 
+    log: ['error'],
   });
 
 if (process.env.NODE_ENV !== 'production') {
