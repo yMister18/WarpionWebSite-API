@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('GET /api/plugin/heartbeat error:', error);
-    return fail('Internal server error', 500);
+
+    return fail(
+      error instanceof Error ? error.message : 'Internal server error',
+      500
+    );
   }
 }
