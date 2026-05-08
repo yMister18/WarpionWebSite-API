@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build --no-lint && echo 'Build concluído'",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
