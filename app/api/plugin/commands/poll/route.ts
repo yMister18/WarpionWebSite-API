@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       return fail('Player not found', 404);
     }
 
-    const commands = await prisma.shopCommand.findMany({
+    const candidates = await prisma.shopCommand.findMany({
       where: {
         playerId: player.id,
         status: {
@@ -41,33 +41,40 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
-    if (commands.length > 0) {
-      await prisma.$transaction(
-        commands.map((command) =>
-          prisma.shopCommand.update({
-            where: { id: command.id },
-            data: {
-              attempts: {
-                increment: 1,
-              },
-              status: ShopCommandStatus.PUBLISHED,
-              publishedAt: command.publishedAt ?? new Date(),
-            },
-          })
-        )
-      );
+    const claimedCommands = [];
+
+    for (const command of candidates) {
+      const claimResult = await prisma.shopCommand.updateMany({
+        where: {
+          id: command.id,
+          status: {
+            in: [ShopCommandStatus.PENDING, ShopCommandStatus.PUBLISHED],
+          },
+        },
+        data: {
+          status: ShopCommandStatus.PROCESSING,
+          attempts: {
+            increment: 1,
+          },
+          publishedAt: command.publishedAt ?? new Date(),
+        },
+      });
+
+      if (claimResult.count > 0) {
+        claimedCommands.push({
+          shopCommandId: command.id,
+          orderId: command.orderId,
+          command: command.command,
+          status: ShopCommandStatus.PROCESSING,
+          attempts: command.attempts + 1,
+          createdAt: command.createdAt,
+        });
+      }
     }
 
     return ok({
       playerUuid,
-      commands: commands.map((command) => ({
-        shopCommandId: command.id,
-        orderId: command.orderId,
-        command: command.command,
-        status: ShopCommandStatus.PUBLISHED,
-        attempts: command.attempts + 1,
-        createdAt: command.createdAt,
-      })),
+      commands: claimedCommands,
     });
   } catch (error) {
     console.error('GET /api/plugin/commands/poll error:', error);

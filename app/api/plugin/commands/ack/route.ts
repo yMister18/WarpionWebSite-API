@@ -44,6 +44,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const allowedCurrentStatuses: ShopCommandStatus[] = [
+      ShopCommandStatus.PROCESSING,
+      ShopCommandStatus.PUBLISHED,
+    ];
+
+    if (!allowedCurrentStatuses.includes(existing.status)) {
+      return fail(
+        `ShopCommand cannot be acknowledged from status ${existing.status}`,
+        409
+      );
+    }
+
     const updated = await prisma.shopCommand.update({
       where: { id: shopCommandId },
       data: success
