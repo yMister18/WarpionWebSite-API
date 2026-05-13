@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getPrismaClient } from '@/lib/prisma';
 import { ok, fail } from '@/lib/api-response';
 import { validateInternalKey } from '@/lib/internal-auth';
@@ -16,69 +17,42 @@ export async function GET(request: NextRequest) {
 
     const action = searchParams.get('action');
     const entityType = searchParams.get('entityType');
-    const take = Math.min(Number(searchParams.get('take') ?? '100'), 200);
+    const page = Math.max(1, Number(searchParams.get('page') ?? '1'));
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number(searchParams.get('pageSize') ?? '25'))
+    );
+    const rawSortDirection = searchParams.get('sortDirection') ?? 'desc';
+    const sortDirection: Prisma.SortOrder =
+      rawSortDirection === 'asc' ? 'asc' : 'desc';
 
-    const logs = await prisma.adminActionLog.findMany({
-      where: {
-        ...(action ? { action } : {}),
-        ...(entityType ? { entityType } : {}),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take,
-    });
+    const where: Prisma.AdminActionLogWhereInput = {
+      ...(action ? { action } : {}),
+      ...(entityType ? { entityType } : {}),
+    };
+
+    const [logs, totalCount] = await Promise.all([
+      prisma.adminActionLog.findMany({
+        where,
+        orderBy: {
+          createdAt: sortDirection,
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.adminActionLog.count({ where }),
+    ]);
 
     return ok({
       count: logs.length,
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
       logs,
     });
   } catch (error) {
     console.error('GET /api/internal/admin/action-logs error:', error);
-    return fail('Internal server error', 500);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    if (!validateInternalKey(request)) {
-      return fail('Unauthorized', 401);
-    }
-
-    const body = await request.json();
-    const action = body?.action;
-    const entityType = body?.entityType;
-    const entityId = body?.entityId ?? null;
-    const actor = body?.actor;
-    const details = body?.details ?? null;
-
-    if (!action || typeof action !== 'string') {
-      return fail('Invalid or missing action', 400);
-    }
-
-    if (!entityType || typeof entityType !== 'string') {
-      return fail('Invalid or missing entityType', 400);
-    }
-
-    if (!actor || typeof actor !== 'string') {
-      return fail('Invalid or missing actor', 400);
-    }
-
-    const prisma = getPrismaClient();
-
-    const log = await prisma.adminActionLog.create({
-      data: {
-        action,
-        entityType,
-        entityId,
-        actor,
-        details,
-      },
-    });
-
-    return ok({ log });
-  } catch (error) {
-    console.error('POST /api/internal/admin/action-logs error:', error);
     return fail('Internal server error', 500);
   }
 }
