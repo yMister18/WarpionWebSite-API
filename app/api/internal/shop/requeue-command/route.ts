@@ -5,6 +5,7 @@ import { ok, fail } from '@/lib/api-response';
 import { validateInternalKey } from '@/lib/internal-auth';
 import { isObject, isString } from '@/lib/validation';
 import { logAdminAction } from '@/lib/admin-action-log';
+import { requeueShopCommandById } from '@/lib/shop-command-requeue';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,12 +21,12 @@ export async function POST(request: NextRequest) {
     if (!isObject(body)) {
       return fail('Invalid request body', 400);
     }
-
     const { shopCommandId } = body;
 
     if (!isString(shopCommandId)) {
       return fail('Invalid or missing shopCommandId', 400);
     }
+    const shopCommand = await requeueShopCommandById(prisma, shopCommandId);
 
     const existing = await prisma.shopCommand.findUnique({
       where: { id: shopCommandId },
